@@ -1,0 +1,78 @@
+---
+title: "LUMCON Open House Respiration Activity"
+output:
+  html_document:
+    df_print: paged
+  github_document: default
+  html_notebook: default
+date: '2018-04-21'
+---
+
+### Introduction to respiration
+[Aerobic respiration](https://en.wikipedia.org/wiki/Cellular_respiration#Aerobic_respiration) is the process that cells use to break down complex organic molecules (carbohydrates, fats, and proteins) to provide the energy they need to survive and grow. This process consumes oxygen and releases carbon dioxide. It can be described by this chemical equation:    
+C6H12O6 + 6 O2 → 6 CO2 + 6 H2O + energy    
+Using an oxygen sensor, it is possible to measure how quickly oxygen is consumed by a sediment sample using the experimental setup pictured here. There are trillions of microorganisms living in this volume of sediment. The oxygen consumption we measure here is the sum of the oxygen used by all of these organisms.
+
+```{r setup code, include=FALSE, message = FALSE}
+# Load necessary packages
+libs <- c('tidyverse', 'rmarkdown', 'lubridate', 'ggthemes', 'gridExtra', 'gtable', 'ggpubr', 'broom')
+lapply(libs, require, character.only = T)
+
+source('~/Box Sync/Research/Analytical Tools/R/Functions/figures.r')
+source('~/Box Sync/Research/Analytical Tools/R/Functions/stats.r')
+```
+
+```{r constants and calculations, include = FALSE}
+# Human respiration calculation
+human_resp <- 550   # liters of oxygen per day
+ideal_gas <- 22.4   # liters of oxygen per mole at STP
+human_bsa <- 2      # square meters
+
+# sediment respiration calculation
+core_d <- 9.5       # core diameter in cemtimeters
+core_h <- 30.5      # core height in centimeters
+sediment_h <- 10        # height of the sediment surface inside the core in centimeters
+sediment_sa <- pi*(core_d/2)*(core_d/2)/1000000                    # sediment surface area in square meters
+vol_water <- pi*(core_d/2)*(core_d/2)*(core_h - sediment_h)/1000   # volume of overlying water in liters
+```
+
+```{r load data, include = FALSE}
+ocr <- read_csv(
+    "2018_lumcon_oh.csv", 
+    na = ".",
+    col_types = cols(
+       time = col_time(format = ""),
+       time_elap = col_double(),
+       oxygen = col_double(),
+       rate = col_double()
+    )
+)
+
+# Convert oxygen concentration from mg per liter to micromoles per liter
+ocr$oxygen <- ocr$oxygen*1000/32
+```
+
+### Sediment respiration rate
+```{r plot oxygen consumption as a function of time, echo = FALSE, message = FALSE, warning=FALSE}
+ggplot(ocr, aes(x = time_elap, y = oxygen)) +
+  geom_point() +
+  stat_smooth(data = ocr, aes(y = oxygen, x = time_elap), method = "lm", formula = y ~ x, size = 0.5, se = FALSE, fullrange = F, colour = "red", linetype = "solid") +
+  theme_pub() +
+  labs(x = "Elapsed Time (hours)", y = "Oxygen Concentration (micromoles per liter)")
+
+ocr_fit <- summary(lm(oxygen~time_elap, ocr))
+```
+
+This graph shows how the amount of oxygen in the water above our sediment core changes through time. We calculate the slope of this line to determine the oxygen consumption rate of `r round(ocr_fit$coefficients[2,1]*-1, 0)` micromoles per liter per hour. Since we know the size of our sediment core, we can calculate the respiration rate of any given area of sediment:    
+**`r round(ocr_fit$coefficients[2,1]*vol_water/(-1000*sediment_sa), 0)` millimoles of oxygen per square meter per hour**.
+
+### Human respiration rate
+On its own, the sediment respiration rate above is just a number. Let's compare it with something that is easier to relate to. The average adult human at rest consumes around `r human_resp` [liters of pure oxygen per day](https://health.howstuffworks.com/human-body/systems/respiratory/question98.htm), the equivalent of around 2 full bathtubs. Assuming an [average human body surface area](https://en.wikipedia.org/wiki/Body_surface_area) of `r human_bsa` square meters, we can calculate the respiration for a given area of human body:    
+**`r round((human_resp*1000)/(22.4*24*2), 0)` millimoles of oxygen per square meter per hour**    
+Dividing both the human and sediment respiration rates by their respective surface areas gives us a basis for directly comparing these two numbers. 
+
+### Learn more
+If you want to learn more about how I calculated the numbers on this page, you can find the source data and computer code on [github]().    
+If you have questions, feel free to contact Charles Schutte at cschutte@lumcon.edu or @[CASchutte](https://twitter.com/caschutte) on Twitter.
+
+
