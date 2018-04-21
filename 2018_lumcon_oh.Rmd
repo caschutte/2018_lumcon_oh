@@ -11,29 +11,40 @@ date: '2018-04-21'
 ### Introduction to respiration
 [Aerobic respiration](https://en.wikipedia.org/wiki/Cellular_respiration#Aerobic_respiration) is the process that cells use to break down complex organic molecules (carbohydrates, fats, and proteins) to provide the energy they need to survive and grow. This process consumes oxygen and releases carbon dioxide. It can be described by this chemical equation:    
 C6H12O6 + 6 O2 → 6 CO2 + 6 H2O + energy    
-Using an oxygen sensor, it is possible to measure how quickly oxygen is consumed by a sediment sample using the experimental setup pictured here. There are trillions of microorganisms living in this volume of sediment. The oxygen consumption we measure here is the sum of the oxygen used by all of these organisms.
+Using an oxygen sensor, it is possible to measure how quickly oxygen is consumed by a sediment sample using the experimental setup pictured here. There are billions of microorganisms living in this volume of sediment. The oxygen consumption we measure here is the sum of the oxygen used by all of these organisms.
 
 ```{r setup code, include=FALSE, message = FALSE}
 # Load necessary packages
-libs <- c('tidyverse', 'rmarkdown', 'lubridate', 'ggthemes', 'gridExtra', 'gtable', 'ggpubr', 'broom')
+libs <- c('tidyverse', 'rmarkdown', 'lubridate', 'ggthemes', 'gridExtra', 'gtable', 'ggpubr', 'broom', 'jpeg', 'knitr')
 lapply(libs, require, character.only = T)
 
 source('~/Box Sync/Research/Analytical Tools/R/Functions/figures.r')
 source('~/Box Sync/Research/Analytical Tools/R/Functions/stats.r')
 ```
 
+```{r  out.width = "50%", echo=FALSE}
+img1_path <- "/Users/charles/data_analysis/outreach/IMG_20180420_125110.jpg"
+# img1 <- readJPEG("/Users/charles/data_analysis/outreach/IMG_20180420_125110.jpg") 
+include_graphics(img1_path)
+```
+
 ```{r constants and calculations, include = FALSE}
 # Human respiration calculation
 human_resp <- 550   # liters of oxygen per day
 ideal_gas <- 22.4   # liters of oxygen per mole at STP
-human_bsa <- 2      # square meters
+human_bsa <- 35      # square meters
+human_mass <- 80    # kg for north american adult 
 
 # sediment respiration calculation
 core_d <- 9.5       # core diameter in cemtimeters
 core_h <- 30.5      # core height in centimeters
-sediment_h <- 10        # height of the sediment surface inside the core in centimeters
-sediment_sa <- pi*(core_d/2)*(core_d/2)/1000000                    # sediment surface area in square meters
+sediment_h <- 12        # height of the sediment surface inside the core in centimeters
+sediment_sa <- pi*(core_d/2)*(core_d/2)                    # sediment surface area in square centimeters
 vol_water <- pi*(core_d/2)*(core_d/2)*(core_h - sediment_h)/1000   # volume of overlying water in liters
+cell_mass <- 9.5e-13  # mass of a typical microorganism in kg (https://hypertextbook.com/facts/2003/LouisSiu.shtml)
+cell_density <- 1000000000/5   # number of cells in 1 cm3 of soil (https://www.nature.com/articles/nrmicro2644)
+o2_pen <- 0.03      # typical oxygen penetration depth in cm
+sediment_biomass <- sediment_sa*o2_pen*cell_density*cell_mass
 ```
 
 ```{r load data, include = FALSE}
@@ -43,8 +54,7 @@ ocr <- read_csv(
     col_types = cols(
        time = col_time(format = ""),
        time_elap = col_double(),
-       oxygen = col_double(),
-       rate = col_double()
+       oxygen = col_double()
     )
 )
 
@@ -63,16 +73,18 @@ ggplot(ocr, aes(x = time_elap, y = oxygen)) +
 ocr_fit <- summary(lm(oxygen~time_elap, ocr))
 ```
 
-This graph shows how the amount of oxygen in the water above our sediment core changes through time. We calculate the slope of this line to determine the oxygen consumption rate of `r round(ocr_fit$coefficients[2,1]*-1, 0)` micromoles per liter per hour. Since we know the size of our sediment core, we can calculate the respiration rate of any given area of sediment:    
-**`r round(ocr_fit$coefficients[2,1]*vol_water/(-1000*sediment_sa), 0)` millimoles of oxygen per square meter per hour**.
+This graph shows how the amount of oxygen in the water above our sediment core changes through time. We calculate the slope of this line to determine the oxygen consumption rate of `r round(ocr_fit$coefficients[2,1]*-1, 0)` micromoles per liter per hour. Since we know the size of our sediment core, we can make some assumptions about the number and size of microorganisms living in the sediment that are exposed to oxygen. From this we can calculate the respiration rate of a kilogram of biomass (living material) in the sediment:    
+**`r round(ocr_fit$coefficients[2,1]*vol_water/(-1000*sediment_biomass), 0)` millimoles of oxygen per kilogram per hour**.
 
 ### Human respiration rate
-On its own, the sediment respiration rate above is just a number. Let's compare it with something that is easier to relate to. The average adult human at rest consumes around `r human_resp` [liters of pure oxygen per day](https://health.howstuffworks.com/human-body/systems/respiratory/question98.htm), the equivalent of around 2 full bathtubs. Assuming an [average human body surface area](https://en.wikipedia.org/wiki/Body_surface_area) of `r human_bsa` square meters, we can calculate the respiration for a given area of human body:    
-**`r round((human_resp*1000)/(22.4*24*2), 0)` millimoles of oxygen per square meter per hour**    
-Dividing both the human and sediment respiration rates by their respective surface areas gives us a basis for directly comparing these two numbers. 
+On its own, the sediment respiration rate above is just a number. Let's compare it with something that is easier to relate to. The average adult human at rest consumes around `r human_resp` [liters of pure oxygen per day](https://health.howstuffworks.com/human-body/systems/respiratory/question98.htm), the equivalent of around 2 full bathtubs. Assuming that [the average North American adult weighs](https://en.wikipedia.org/wiki/Human_body_weight) `r human_mass` kilograms (`r human_mass*2.2` pounds), we can calculate a respiration rate of:    
+**`r round((human_resp*1000)/(22.4*24*human_mass), 0)` millimoles of oxygen per kilogram per hour**   
+
+### Respiration rate comparison
+Dividing both the human and sediment respiration rates by the mass of living material gives us a basis for directly comparing these two numbers. Our results indicate that **the microbial biomass in this sediment consumes oxygen `r round((ocr_fit$coefficients[2,1]*vol_water/(-1000*sediment_biomass))/((human_resp*1000)/(22.4*24*human_mass)), 0)` times faster than human biomass!** That said, an average human adult consumes `r round((human_resp*1000)/(22.4*24), 0)` millimoles of oxygen per hour. It would take `r round((human_resp*1000)/(22.4*24) / (ocr_fit$coefficients[2,1]*vol_water/(-1000*(sediment_sa/10000))), 0)` square meters of sediment to consume oxygen at this rate. This is the equivalent of `r round((human_resp*1000*10.764)/(22.4*24) / (ocr_fit$coefficients[2,1]*vol_water/(-1000*(sediment_sa/10000))), 0)` square feet, a little smaller than the footprint of [an average American home](http://money.cnn.com/2014/06/04/real_estate/american-home-size/index.html).
 
 ### Learn more
-If you want to learn more about how I calculated the numbers on this page, you can find the source data and computer code on [github]().    
-If you have questions, feel free to contact Charles Schutte at cschutte@lumcon.edu or @[CASchutte](https://twitter.com/caschutte) on Twitter.
+If you want to learn more about how I calculated the numbers on this page, you can find the source data and computer code on [github](https://github.com/caschutte/2018_lumcon_oh).    
+If you have questions, feel free to contact [Charles Schutte](personal website) by email at cschutte@lumcon.edu or at @[CASchutte](https://twitter.com/caschutte) on Twitter.
 
 
